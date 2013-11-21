@@ -156,6 +156,8 @@ class DispersyTunnelProxy(Observable):
         self.circuits[0] = Circuit(0)
         self.circuits[0].created = True
 
+        self.joined = set()
+
         self.lock = threading.RLock()
 
         # Map destination address to the circuit to be used
@@ -192,6 +194,9 @@ class DispersyTunnelProxy(Observable):
 
                     for relay in self.relay_from_to.values():
                         self.community.send(u"ping", relay.candidate, relay.circuit_id)
+
+                    for address, circuit_id in self.joined:
+                        self.community.send(u"ping", address, circuit_id)
 
                     timeout = 10.0
                     dead_circuits = [c for c in self.circuits.values() if c.goal_hops > 0 and c.created and c.last_incoming < time.time() - timeout]
@@ -328,6 +333,8 @@ class DispersyTunnelProxy(Observable):
 
         community = self.community
         community.send(u"created", address, msg.circuit_id)
+
+        self.joined.add((address, msg.circuit_id))
 
     def on_created(self, event, message):
         """ Handle incoming CREATED messages relay them backwards towards the originator if necessary """
