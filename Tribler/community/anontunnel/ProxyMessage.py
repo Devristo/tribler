@@ -13,6 +13,10 @@ MESSAGE_PING = chr(7)
 MESSAGE_PONG = chr(8)
 MESSAGE_PUNCTURE = chr(9)
 MESSAGE_STATS = chr(10)
+MESSAGE_REGISTER = chr(11)
+MESSAGE_REGISTERED = chr(12)
+MESSAGE_COOKED = chr(13)
+MESSAGE_RENDEVOUZ = chr(14)
 
 encode_functions = {}
 decode_functions = {}
@@ -33,6 +37,18 @@ class PingMessage:
 class CreatedMessage:
     pass
 
+
+class RegisterMessage:
+    pass
+
+class RegisteredMessage:
+    def __init__(self, cookie):
+        self.cookie = cookie
+
+class CookedMessage:
+    def __init__(self, cookie, payload):
+        self.cookie = cookie
+        self.payload = payload
 
 class ExtendMessage:
     @property
@@ -74,6 +90,8 @@ class DataMessage:
 def serialize(circuit_id, type, message):
     return struct.pack("!L", circuit_id) + type + encode_functions[type](message)
 
+def tag_data(circuit_id, data):
+    return struct.pack("!L", circuit_id) + data
 
 def change_circuit(buffer, new_id):
     return struct.pack("!L", new_id) + buffer[4:]
@@ -170,6 +188,7 @@ def __decode_data(buffer, offset=0):
 
     return DataMessage(destination, payload, origin)
 
+
 def __decode_puncture(buffer, offset=0):
     host_length, port = struct.unpack_from("!LL", buffer, offset)
     offset += 8
@@ -184,8 +203,33 @@ def __decode_puncture(buffer, offset=0):
     return PunctureMessage(destination)
 
 
+def __decode_registered(buffer, offset=0):
+    cookie = buffer[offset:offset+8]
+    offset += 8
+
+    return RegisteredMessage(cookie)
+
+def __encode_registered(registered_message):
+    return registered_message.cookie
+
 def __encode_puncture(puncture_message):
     return struct.pack("!LL", len(puncture_message.sock_addr[0]), puncture_message.sock_addr[1]) + puncture_message.sock_addr[0]
+
+
+def __decode_cooked(buffer, offset=0):
+    cookie = buffer[offset:offset+8]
+    payload = buffer[offset+8:]
+
+    return CookedMessage(cookie, payload)
+
+
+def __encode_cooked(cooked):
+    assert len(cooked.cookie) == 8, "Cookie should be set!"
+    return cooked.cookie + cooked.payload
+
+
+def __encode_rendevouz(rendevouz):
+    return struct.pack("!LL", len(rendevouz.host), rendevouz.port) + rendevouz.host + rendevouz.service_cookie + rendevouz.rendevouz_cookie
 
 
 def __encode_data(data_message):
@@ -234,3 +278,15 @@ encode_functions[MESSAGE_PUNCTURE] = __encode_puncture
 
 decode_functions[MESSAGE_STATS] = lambda buffer, offset: decode(buffer[offset:])[1]
 encode_functions[MESSAGE_STATS] = lambda stats: encode(stats)
+
+decode_functions[MESSAGE_REGISTER] = lambda buffer, offset: RegisterMessage()
+encode_functions[MESSAGE_REGISTER] = empty_string_lambda
+
+decode_functions[MESSAGE_REGISTER] = __decode_registered
+encode_functions[MESSAGE_REGISTER] = __encode_registered
+
+decode_functions[MESSAGE_COOKED] = __decode_cooked
+encode_functions[MESSAGE_COOKED] = __encode_cooked
+
+decode_functions[MESSAGE_RENDEVOUZ] = __decode_rendevouz
+encode_functions[MESSAGE_RENDEVOUZ] = __encode_rendevouz

@@ -1,4 +1,8 @@
+from collections import defaultdict
+import os
 import uuid
+from aplus import Promise
+
 from Tribler.community.anontunnel.ProxyMessage import PunctureMessage
 
 MAX_CIRCUITS_TO_CREATE = 1
@@ -34,7 +38,6 @@ class Circuit(Observable):
     @property
     def bytes_downloaded(self):
         return self.bytes_down[1]
-
 
     @property
     def bytes_uploaded(self):
@@ -159,25 +162,25 @@ class DispersyTunnelProxy(Observable):
         Observable.__init__(self)
 
         self.prefix = 'f' * 22 + 'e'
-
         self.__online = False
         self.share_stats = False
         self.callback = None
-
         self.raw_server = raw_server
         self._record_stats = False
-
         self._exit_sockets = {}
-
         self.done = False
         self.circuits = {}
-
         self.member_heartbeat = {}
-
         self.download_stats = None
-
-
         self.joined = set()
+
+        self.cookies = {}
+        self.registered_cookies = {}
+
+        self.circuit_promises = defaultdict(lambda circuit_id: Promise())
+        """:type : dict[int, Promise]"""
+
+        self.accept_promises = defaultdict(lambda circuit_id, service_cookie: Promise())
 
         self.lock = threading.RLock()
 
@@ -195,12 +198,9 @@ class DispersyTunnelProxy(Observable):
             self.circuits[0] = Circuit(0)
             self.circuits[0].state = CIRCUIT_STATE_READY
 
-
         self.circuit_length_strategy = ConstantCircuitLengthStrategy(length)
         self.circuit_selection_strategy = RandomSelectionStrategy(1)
-
         self.extend_strategy = ExtendStrategies.RandomAPriori
-
         self.message_observer = Observable()
 
         self.community = None
@@ -398,7 +398,6 @@ class DispersyTunnelProxy(Observable):
         callback.register(check_ready)
         callback.register(find_circuit_candidate)
 
-
     def on_break(self, circuit_id, candidate, message):
         address = candidate
         assert isinstance(message, ProxyMessage.BreakMessage)
@@ -435,9 +434,7 @@ class DispersyTunnelProxy(Observable):
 
                 if circuit.goal_hops == len(circuit.hops):
                     circuit.state = CIRCUIT_STATE_READY
-
-                # Instantiate extend strategy
-                circuit.extend_strategy = self.extend_strategy(self, circuit)
+                    self.circuit_promises[circuit.id].fulfill(circuit)
 
                 self.fire("circuit_created", circuit=circuit)
                 circuit.fire("created")
@@ -579,7 +576,6 @@ class DispersyTunnelProxy(Observable):
             self.fire("circuit_extend", extend_for=(from_candidate, from_circuit_id),
                       extend_with=(to_candidate, new_circuit_id))
 
-
     def on_extended(self, circuit_id, candidate, message):
         """ A circuit has been extended, forward the acknowledgment back
             to the origin of the EXTEND. If we are the origin update
@@ -602,7 +598,6 @@ class DispersyTunnelProxy(Observable):
                     for x in circuit.hops
                 ])
 
-
                 # CYCLE DETECTED!
                 # Quick fix: delete the circuit!
                 if extended_with in addresses_in_use:
@@ -618,6 +613,7 @@ class DispersyTunnelProxy(Observable):
 
                 if circuit.goal_hops == len(circuit.hops):
                     circuit.state = CIRCUIT_STATE_READY
+                    self.circuit_promises[circuit.id].fulfill(circuit)
 
                 logger.warning('Circuit %d has been extended with node at address %s and contains now %d hops',
                                circuit_id,
@@ -635,7 +631,7 @@ class DispersyTunnelProxy(Observable):
 
         return circuit_id
 
-    def create_circuit(self, first_hop, circuit_id=None):
+    def create_circuit(self, first_hop, extend_strategy=None):
         """ Create a new circuit, with one initial hop """
 
         # Generate a random circuit id that hasn't been used yet by us
@@ -644,6 +640,9 @@ class DispersyTunnelProxy(Observable):
 
         circuit = Circuit(circuit_id, first_hop)
         circuit.goal_hops = self.circuit_length_strategy.circuit_length()
+
+        # Instantiate extend strategy
+        circuit.extend_strategy = self.extend_strategy(self, circuit) if extend_strategy is None else extend_strategy(self, circuit)
 
         logger.warning('Circuit %d is to be created, we want %d hops', circuit.id, circuit.goal_hops)
 
@@ -758,7 +757,6 @@ class DispersyTunnelProxy(Observable):
                 del self.relay_from_to[(relay.candidate, relay.circuit_id)]
                 del self.relay_from_to[relay_key]
 
-
     def break_circuit(self, circuit_id):
         with self.lock:
             # Give other members possibility to clean up
@@ -812,4 +810,66 @@ class DispersyTunnelProxy(Observable):
         except BaseException, e:
             logger.exception(e)
 
+    def register_cookie(self):
+        for c in self.active_circuits:
+            self.send_message(c.candidate, c.id, ProxyMessage.MESSAGE_REGISTER, None)
 
+    def on_register(self, circuit_id, candidate, message):
+        cookie = os.urandom(8)
+        self.cookies[cookie] = (candidate, circuit_id)
+        logger.warning("Baked cookie %s for (%s, %d)" % (cookie.encode("HEX"), candidate, circuit_id))
+        self.send_message(candidate, circuit_id, ProxyMessage.MESSAGE_REGISTERED, ProxyMessage.RegisteredMessage(cookie))
+
+    def on_registered(self, circuit_id, candidate, message):
+        logger.warning("Registered cookie %s at (%s, %d)" % (message.cookie.encode("HEX"), candidate, circuit_id))
+        self.registered_cookies[(candidate, circuit_id)] = message.cookie
+
+    def promise_circuit_to(self, destination):
+        find_first = next(self.community.dispersy_yield_verified_candidates, None)
+
+        if find_first:
+            circuit = self.create_circuit(find_first)
+            promise = self.circuit_promises[circuit.id]
+
+            return promise.then()
+        else:
+            promise = Promise()
+            promise.reject("Cannot find a hop to create a peer with!")
+
+            return promise
+
+    def connect_to_dark_peer(self, introduction_point, service_cookie):
+        def on_rendevouz_ready(circuit):
+            def on_accept():
+                address = "10." + ".".join(str(random.randrange(256)) for _ in range(3))
+                self.ip2rendevouz[address] = ()
+                return address
+
+            return self.accept_promise[(circuit.id, service_cookie)].then(on_accept)
+
+        return self.promise_circuit_to(introduction_point).then(on_rendevouz_ready)
+
+    def on_rendevouz(self, circuit_id, candidate, message):
+
+
+    def on_accept(self, circuit_id, candidate, message):
+        service_cookie = message.service_cookie
+        self.accept_promise[(circuit_id, service_cookie)].fulfil()
+
+    def on_cooked(self, circuit_id, candidate, message):
+        service_cookie = message.cookie
+        payload = message.payload
+
+        # It is our responsibility to forward the data
+        if service_cookie in self.cookies:
+            destination_candidate, destination_circuit_id = self.cookies[service_cookie]
+            self.send_message(destination_candidate, destination_circuit_id, ProxyMessage.MESSAGE_COOKED, message)
+
+        # Ok this cookie is ours!
+        elif service_cookie in self.registered_cookies:
+            type, proxied_payload = ProxyMessage.parse_payload(payload)
+
+            if type == ProxyMessage.MESSAGE_COOKED:
+                connection_cookie = proxied_payload.cookie
+                return_address = self.get_cooked_address(circuit_id, service_cookie, connection_cookie)
+                data_message = ProxyMessage.DataMessage(("0.0.0.0",0), proxied_payload.payload, return_address)
