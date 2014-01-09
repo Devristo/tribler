@@ -11,7 +11,7 @@ import sys
 
 def get_cryptor( op, key, alg='aes_128_ecb', iv=None ):
     if iv == None:
-        iv = '\0' * 16
+        iv = '\0' * 256
     cryptor = M2Crypto.EVP.Cipher( alg=alg, key=key, iv=iv, op=op)
     return cryptor
 
@@ -35,36 +35,3 @@ def getCipher(secret):
         cache[secret] = AES.new(secret, AES.MODE_ECB, iv)
 
     return cache[secret]
-
-'''
-
-# the character used for padding--with a block cipher such as AES, the value
-# you encrypt must be a multiple of BLOCK_SIZE in length.  This character is
-# used to ensure that your value is always a multiple of BLOCK_SIZE
-BS = 16
-pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
-unpad = lambda s : s[0:-ord(s[-1])]
-
-
-def AESencode(secret, message):
-    message = pad(message)
-    cipher = getCipher(secret)
-    return cipher.encrypt(message)
-
-
-def AESdecode(secret, enc):
-
-    cipher = getCipher(secret)
-    return unpad(cipher.decrypt(enc))
-
-cache = {}
-
-def getCipher(secret):
-    if secret not in cache:
-        iv = secret[:16]
-        cache[secret] = AES.new(secret, AES.MODE_ECB, iv)
-
-
-    return cache[secret]
-
-'''

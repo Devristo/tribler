@@ -70,7 +70,7 @@ class ProxySettings:
 
         self.extend_strategy = ExtendStrategies.NeighbourSubset
         self.select_strategy = RandomSelectionStrategy(1)
-        self.length_strategy = RandomCircuitLengthStrategy(2,2)
+        self.length_strategy = RandomCircuitLengthStrategy(2,4)
 
 
 class TunnelObserver():
@@ -464,6 +464,8 @@ class ProxyCommunity(Community):
         candidate = self.get_candidate(sock_addr) or Candidate(sock_addr, False)
         circuit_id, data = self.proxy_conversion.get_circuit_and_data(packet)
         relay_key = (candidate, circuit_id)
+
+        logger.debug("Data size: {} bytes".format(len(data)))
 
         # First, relay packet if we know whom to forward message to for this circuit
         if circuit_id > 0 and relay_key in self.relay_from_to:
