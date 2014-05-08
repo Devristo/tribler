@@ -162,7 +162,7 @@ class CustomProxyConversion():
 
         return ''.join([
             struct.pack(
-                "!LHLLL", len(host), port, len(origin[0]),
+                "!HHHHL", len(host), port, len(origin[0]),
                 origin[1], len(data_message.data)
             ),
             host,
@@ -172,8 +172,8 @@ class CustomProxyConversion():
 
     def __decode_data(self, message_buffer, offset=0):
         host_length, port, origin_host_length, origin_port, payload_length = \
-            struct.unpack_from("!LHLLL", message_buffer, offset)
-        offset += 18
+            struct.unpack_from("!HHHHL", message_buffer, offset)
+        offset += 12
 
         if len(message_buffer) < offset + host_length:
             raise ValueError("Cannot unpack Host, insufficient packet size")
@@ -208,13 +208,13 @@ class CustomProxyConversion():
 
     def __encode_created(self, message):
         #key = long_to_bytes(messages.key, DIFFIE_HELLMAN_MODULUS_SIZE / 8)
-        return struct.pack("!L", len(message.key)) + message.key + \
+        return struct.pack("!H", len(message.key)) + message.key + \
                message.candidate_list
 
     def __decode_created(self, message_buffer, offset=0):
-        key_length, = struct.unpack_from("!L",
-                                         message_buffer[offset:offset + 4])
-        offset += 4
+        key_length, = struct.unpack_from("!H",
+                                         message_buffer[offset:offset + 2])
+        offset += 2
         key = message_buffer[offset:offset + key_length]
         offset += key_length
 
@@ -224,12 +224,12 @@ class CustomProxyConversion():
         return message
 
     def __encode_extended(self, message):
-        return struct.pack("!L", len(message.key)) + message.key + \
+        return struct.pack("!H", len(message.key)) + message.key + \
                message.candidate_list
 
     def __decode_extended(self, message_buffer, offset=0):
-        key_length, = struct.unpack_from("!L", message_buffer[offset:])
-        offset += 4
+        key_length, = struct.unpack_from("!H", message_buffer[offset:])
+        offset += 2
         key = message_buffer[offset:offset+key_length]
         offset += key_length
 
