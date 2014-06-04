@@ -429,45 +429,43 @@ class ProxyCommunity(Community):
         if not (goal_hops > 0):
             raise ValueError("We can only create circuits with more than 0 hops using create_circuit()!")
 
-        # TODO(emilon): Can this lock be removed or at least be converted to a DeferredLock?
-        with self.lock:
-            circuit_id = self._generate_circuit_id(first_hop.sock_addr)
-            circuit = Circuit(
-                circuit_id=circuit_id,
-                goal_hops=goal_hops,
-                first_hop=first_hop.sock_addr,
-                proxy=self)
+        circuit_id = self._generate_circuit_id(first_hop.sock_addr)
+        circuit = Circuit(
+            circuit_id=circuit_id,
+            goal_hops=goal_hops,
+            first_hop=first_hop.sock_addr,
+            proxy=self)
 
-            @blocking_call_on_reactor_thread
-            def _add_cache():
-                self._request_cache.add(CircuitRequestCache(self, circuit))
+        if extend_strategy:
+            circuit.extend_strategy = extend_strategy
+        else:
+            circuit.extend_strategy = self.settings.extend_strategy(
+                self, circuit)
 
-            _add_cache()
+        hop_public_key = first_hop.get_member()._ec
+        circuit.unverified_hop = Hop(hop_public_key)
+        circuit.unverified_hop.address = first_hop.sock_addr
 
-            if extend_strategy:
-                circuit.extend_strategy = extend_strategy
-            else:
-                circuit.extend_strategy = self.settings.extend_strategy(
-                    self, circuit)
+        self._logger.warning("Creating circuit %d of %d hops. Fist hop: %s:%d",
+            circuit_id, circuit.goal_hops,
+            first_hop.sock_addr[0],
+            first_hop.sock_addr[1]
+        )
 
-            hop_public_key = first_hop.get_member()._ec
-            circuit.unverified_hop = Hop(hop_public_key)
-            circuit.unverified_hop.address = first_hop.sock_addr
+        self.circuits[circuit_id] = circuit
+        self.waiting_for[(first_hop.sock_addr, circuit_id)] = True
 
-            self._logger.warning("Creating circuit %d of %d hops. Fist hop: %s:%d",
-                circuit_id, circuit.goal_hops,
-                first_hop.sock_addr[0],
-                first_hop.sock_addr[1]
-            )
+        destination_key = first_hop.get_member()._ec
+        self.send_message(first_hop.sock_addr, circuit_id, MESSAGE_CREATE,
+                          CreateMessage("", self.my_member.public_key, destination_key))
 
-            self.circuits[circuit_id] = circuit
-            self.waiting_for[(first_hop.sock_addr, circuit_id)] = True
+        @blocking_call_on_reactor_thread
+        def _add_cache():
+            self._request_cache.add(CircuitRequestCache(self, circuit))
 
-            destination_key = first_hop.get_member()._ec
-            self.send_message(first_hop.sock_addr, circuit_id, MESSAGE_CREATE,
-                              CreateMessage("", self.my_member.public_key, destination_key))
+        _add_cache()
 
-            return circuit
+        return circuit
 
     def remove_circuit(self, circuit_id, additional_info=''):
         """
