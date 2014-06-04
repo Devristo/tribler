@@ -47,7 +47,7 @@ class ProxySettings:
         length = random.randint(3, 3)
 
         self.max_circuits = 1
-        self.delay = 300
+        self.delay = 5
 
         self.extend_strategy = extendstrategies.NeighbourSubset
         self.select_strategy = selectionstrategies.RoundRobin()
@@ -182,8 +182,6 @@ class ProxyCommunity(Community):
         return self.settings.crypto
 
     def __discover(self):
-        self._logger.error("The %d pools want %d circuits", len(self.circuit_pools), sum(pool.lacking for pool in self.circuit_pools))
-
         circuits_needed = lambda: max(
             sum(pool.lacking for pool in self.circuit_pools),
             self.settings.max_circuits - len(self.circuits)
@@ -899,7 +897,7 @@ class ProxyCommunity(Community):
                     self.send_message(circuit.first_hop, circuit.circuit_id, MESSAGE_PING, PingMessage())
                     pinged += 1
 
-            self._logger.error("Pinged %d circuits, removed %d", pinged, broken)
+            self._logger.debug("Pinged %d circuits, removed %d", pinged, broken)
 
         self.rawserver.add_task(_ping_circuits)
 

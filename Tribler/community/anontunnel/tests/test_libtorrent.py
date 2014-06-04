@@ -43,12 +43,9 @@ class LibtorrentTest(TunnelObserver):
 
     def stop(self, delay=0.0):
         if self.download:
-            def remove_download():
-                self.tribler_session.remove_download(self.download, True, True)
-                self.download = None
-                self._logger.error("Removed test download")
-
-            self.tribler_session.lm.rawserver.add_task(remove_download, delay=delay)
+            self.tribler_session.remove_download(self.download, True, True)
+            self.download = None
+            self._logger.error("Removed test download")
 
     def _has_completed_before(self):
         return os.path.isfile(self.tribler_session.get_state_dir() + "/anon_test.txt")
@@ -121,6 +118,12 @@ class LibtorrentTest(TunnelObserver):
 
         dscfg.set_anon_mode(True)
         dscfg.set_dest_dir(destination_dir)
+
+        # Remove download if it exists prior the test
+        if self.tribler_session.lm.download_exists(tdef.get_infohash()):
+            self._logger.error("Anon test terminated forcefully, removing and starting over")
+            old_download = self.tribler_session.lm.get_download(tdef.get_infohash())
+            self.tribler_session.lm.remove(old_download, True, True)
 
         self.download = self.tribler_session.start_download(tdef, dscfg)
         self.download.set_state_callback(state_call(), delay=1)
