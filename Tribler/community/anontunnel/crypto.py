@@ -315,7 +315,7 @@ class DefaultCrypto(Crypto):
         message.key = dh_second_part
 
         if dh_second_part < 2 or dh_second_part > DIFFIE_HELLMAN_MODULUS - 1:
-            self._logger.warning("Invalid DH data received over circuit {}.".format(circuit_id))
+            self._logger.error("Invalid DH data received over circuit {}.".format(circuit_id))
             return None
 
         self._received_secrets[relay_key] = dh_second_part
@@ -444,7 +444,7 @@ class DefaultCrypto(Crypto):
         dh_second_part = mpz(bytes_to_long(message.key))
 
         if dh_second_part < 2 or dh_second_part > DIFFIE_HELLMAN_MODULUS - 1:
-            self._logger.warning("Invalid DH data received over circuit {}.".format(circuit_id))
+            self._logger.error("Invalid DH data received over circuit {}.".format(circuit_id))
             return None
 
         session_key = pow(dh_second_part,
@@ -596,7 +596,7 @@ class DefaultCrypto(Crypto):
 
                 return data
             except:
-                self._logger.warning("Cannot decrypt packet. It should be a packet coming of our own circuit, but we cannot peel the onion.")
+                self._logger.warning("Circuit ID %d, Cannot decrypt packet. It should be a packet coming of our own circuit, but we cannot peel the onion.", circuit_id)
                 return None
 
         # I don't know the sender! Let's decrypt with my private Elgamal key
@@ -611,5 +611,5 @@ class DefaultCrypto(Crypto):
 
                 return data
             except:
-                self._logger.warning("Cannot decrypt packet, should be an initial packet encrypted with our public Elgamal key");
+                self._logger.warning("Circuit ID %d, Cannot decrypt packet, should be an initial packet encrypted with our public Elgamal key", circuit_id);
                 return None

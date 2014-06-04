@@ -141,7 +141,7 @@ class ProxyCommunity(Community):
         else:
             self.notifier = None
 
-        self._pending_tasks["discover"] = lc = LoopingCall(self.__discover)
+        self._pending_tasks["discover"] = lc = LoopingCall(self.discover)
         lc.start(5, now=True)
 
         self._pending_tasks["ping circuits"] = lc = LoopingCall(self.ping_circuits)
@@ -181,13 +181,13 @@ class ProxyCommunity(Community):
     def packet_crypto(self):
         return self.settings.crypto
 
-    def __discover(self):
-        circuits_needed = lambda: max(
-            sum(pool.lacking for pool in self.circuit_pools),
-            self.settings.max_circuits - len(self.circuits)
-        )
+    def discover(self):
+        def _discover():
+            circuits_needed = lambda: max(
+                sum(pool.lacking for pool in self.circuit_pools),
+                self.settings.max_circuits - len(self.circuits)
+            )
 
-        with self.lock:
             for i in range(0, circuits_needed()):
                 self._logger.debug("Need %d new circuits!", circuits_needed())
                 goal_hops = self.settings.length_strategy.circuit_length()
@@ -218,6 +218,7 @@ class ProxyCommunity(Community):
                         except:
                             self._logger.exception("Error creating circuit while running __discover")
 
+        self.rawserver.add_task(_discover)
     def unload_community(self):
         """
         Called by dispersy when the ProxyCommunity is being unloaded
@@ -303,16 +304,15 @@ class ProxyCommunity(Community):
         data = self.packet_crypto.handle_incoming_packet(sock_addr, circuit_id, data)
 
         if not data:
-            self._logger.error("Circuit ID %d sent undecryptable packet. Might be an old session key."
+            self._logger.error("Circuit ID %d dropping packet. Might be an old session key."
             , circuit_id)
             return False
 
         # Try to parse the packet
-
         try:
             _, payload = self.proxy_conversion.decode(data)
         except KeyError as e:
-            self._logger.warning("Cannot decode payload, probably orphaned session")
+            self._logger.error("Circuit ID %d. Cannot decode payload, probably orphaned session", circuit_id)
             return False
 
         packet_type = self.proxy_conversion.get_type(data)
@@ -368,10 +368,6 @@ class ProxyCommunity(Community):
                 observer.on_relay(this_relay_key, relay_key, direction, data)
 
         packet_type = self.proxy_conversion.get_type(data)
-
-        str_type = MESSAGE_TYPE_STRING.get(
-            packet_type, 'unknown-type-%d' % ord(packet_type)
-        )
 
         self.send_packet(
             destination=next_relay.sock_addr,
@@ -482,18 +478,19 @@ class ProxyCommunity(Community):
         """
         assert isinstance(circuit_id, (long, int)), type(circuit_id)
 
-        if circuit_id in self.circuits:
-            self._logger.error("Breaking circuit %d " + additional_info,
-                               circuit_id)
-            circuit = self.circuits[circuit_id]
+        with self.lock:
+            if circuit_id in self.circuits:
+                self._logger.error("Breaking circuit %d " + additional_info,
+                                   circuit_id)
+                circuit = self.circuits[circuit_id]
 
-            circuit.destroy()
-            del self.circuits[circuit_id]
-            for observer in self.observers:
-                observer.on_break_circuit(circuit)
+                circuit.destroy()
+                del self.circuits[circuit_id]
+                for observer in self.observers:
+                    observer.on_break_circuit(circuit)
 
-            return True
-        return False
+                return True
+            return False
 
     def remove_relay(self, relay_key, additional_info=''):
         """
@@ -531,8 +528,7 @@ class ProxyCommunity(Community):
         """
         relay_key = (sock_addr, circuit_id)
         self.directions[relay_key] = ENDPOINT
-        self._logger.info('We joined circuit %d with neighbour %s'
-                          , circuit_id, sock_addr)
+        self._logger.info('We joined circuit %d with neighbour %s', circuit_id, sock_addr)
 
         candidates = {}
         ''' :type : dict[str, WalkCandidate] '''
@@ -605,23 +601,27 @@ class ProxyCommunity(Community):
             EXTENDED message we received
         """
 
-        @blocking_call_on_reactor_thread
-        def _get_cache():
-            return self.request_cache.pop(CircuitRequestCache.PREFIX, CircuitRequestCache.create_identifier(circuit))
+        def _pop_cache():
+            reactor.callFromThread(
+                self.request_cache.pop,
+                CircuitRequestCache.PREFIX, CircuitRequestCache.create_identifier(circuit)
+            )
 
-        request = _get_cache()
         candidate_list = message.candidate_list
 
         circuit.add_hop(circuit.unverified_hop)
         circuit.unverified_hop = None
 
+        # remove ourself from candidate list
         if self.my_member.public_key in candidate_list:
             candidate_list.remove(self.my_member.public_key)
 
+        # avoid loops
         for hop in circuit.hops:
             if hop.public_key in candidate_list:
                 candidate_list.remove(hop.public_key)
 
+        # only compatible keys
         for i in range(len(candidate_list) - 1, -1, -1):
             public_key = self.crypto.key_from_public_bin(candidate_list[i])
             if not self.packet_crypto.is_key_compatible(public_key):
@@ -632,10 +632,12 @@ class ProxyCommunity(Community):
                 if not circuit.extend_strategy.extend(candidate_list):
                     raise ValueError("Extend strategy returned False")
             except BaseException as e:
+                _pop_cache() # We dont care for the time out as it is broken anyway
                 self.remove_circuit(circuit.circuit_id, e.message)
                 return False
 
         elif circuit.state == CIRCUIT_STATE_READY:
+            _pop_cache() # It is ready, cancel time out
             first_pool = next((pool for pool in self.circuit_pools if pool.lacking), None)
             if first_pool:
                 first_pool.fill(circuit)
@@ -712,7 +714,7 @@ class ProxyCommunity(Community):
             cache = self.pop_created_cache(circuit_id, sock_addr)
 
             if not cache:
-                self._logger.warning("Cannot find created cache for circuit %d", circuit_id)
+                self._logger.error("Cannot find created cache for circuit %d", circuit_id)
                 return False
 
             extend_candidate = cache.candidates[message.extend_with]
@@ -949,7 +951,6 @@ class ProxyCommunity(Community):
 
             return result
 
-    @blocking_call_on_reactor_thread
     def create_created_cache(self, circuit_id, candidate, candidates):
         """
 
@@ -957,7 +958,7 @@ class ProxyCommunity(Community):
         @param WalkCandidate candidate: the candidate we got the CREATE from
         @param dict[str, WalkCandidate] candidates: list of extend candidates we sent back
         """
-        self._request_cache.add(CreatedRequestCache(self, circuit_id, candidate, candidates))
+        reactor.callFromThread(self._request_cache.add, CreatedRequestCache(self, circuit_id, candidate, candidates))
 
     @blocking_call_on_reactor_thread
     def pop_created_cache(self, circuit_id, candidate):

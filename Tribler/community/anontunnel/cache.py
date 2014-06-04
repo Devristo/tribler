@@ -45,8 +45,8 @@ class CircuitRequestCache(NumberCache):
             import CIRCUIT_STATE_READY
 
         if not self.circuit.state == CIRCUIT_STATE_READY:
-            reason = 'timeout on CircuitRequestCache, state = %s, candidate = %s' % \
-                     (self.circuit.state, self.circuit.first_hop)
+            reason = 'create/extend timeout, length = %d/%d, candidate = %s' % \
+                     (len(self.circuit.hops), self.circuit.goal_hops,  self.circuit.first_hop)
             self.community.remove_circuit(self.number, reason)
 
     @classmethod

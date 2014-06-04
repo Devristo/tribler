@@ -266,7 +266,7 @@ def main(argv):
                             help='Circuit selection strategy')
         parser.add_argument('-e', '--extend-strategy', default='subset',
                             help='Circuit extend strategy')
-        parser.add_argument('--max-circuits', nargs=1, default=10,
+        parser.add_argument('--max-circuits', default=10,
                             help='Maximum number of circuits to create')
         parser.add_argument('--crawl', default=False,
                             help='Record stats from others in results.db')
@@ -296,6 +296,8 @@ def main(argv):
 
     crawl = True if args.crawl else False
     proxy_settings = ProxySettings()
+
+    proxy_settings.max_circuits = int(args.max_circuits)
 
     # Set extend strategy
     if args.extend_strategy == 'delegate':
@@ -338,8 +340,6 @@ def main(argv):
 
     anon_tunnel = AnonTunnel(socks5_port, proxy_settings, crawl)
     ''' @type: AnonTunnel '''
-
-
 
     from twisted.internet import reactor
 
