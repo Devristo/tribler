@@ -213,7 +213,7 @@ class OpenSSLCurves():
         self.curve_dict = defaultdict(lambda: ["", "", ""])
 
         implicit = True
-        f = open(os.path.join(LIBRARYNAME, 'community', 'privatesemantic', 'crypto', 'curves.ec'), 'r')
+        f = open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'curves.ec'), 'r')
         for line in f:
             line = line.strip()
 
