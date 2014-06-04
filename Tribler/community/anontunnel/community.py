@@ -8,6 +8,7 @@ import random
 import threading
 import time
 from collections import defaultdict
+
 from twisted.internet.task import LoopingCall
 from twisted.internet import reactor
 
@@ -140,11 +141,9 @@ class ProxyCommunity(Community):
         else:
             self.notifier = None
 
-        self._pending_tasks["discover"] = lc = LoopingCall(self.discover)
-        lc.start(5, now=True)
+        self.register_task("discover", LoopingCall(self.discover)).start(5, now=True)
+        self.register_task("ping circuits", LoopingCall(self.ping_circuits)).start(PING_INTERVAL)
 
-        self._pending_tasks["ping circuits"] = lc = LoopingCall(self.ping_circuits)
-        lc.start(PING_INTERVAL)
 
     @classmethod
     def get_master_members(cls, dispersy):
@@ -218,6 +217,7 @@ class ProxyCommunity(Community):
                             self._logger.exception("Error creating circuit while running __discover")
 
         self.rawserver.add_task(_discover)
+        
     def unload_community(self):
         """
         Called by dispersy when the ProxyCommunity is being unloaded
@@ -367,6 +367,10 @@ class ProxyCommunity(Community):
                 observer.on_relay(this_relay_key, relay_key, direction, data)
 
         packet_type = self.proxy_conversion.get_type(data)
+
+        str_type = MESSAGE_TYPE_STRING.get(
+            packet_type, 'unknown-type-%d' % ord(packet_type)
+        )
 
         self.send_packet(
             destination=next_relay.sock_addr,
