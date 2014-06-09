@@ -8,7 +8,6 @@ import random
 import threading
 import time
 from collections import defaultdict
-
 from twisted.internet.task import LoopingCall
 from twisted.internet import reactor
 
@@ -542,7 +541,7 @@ class ProxyCommunity(Community):
 
         candidate_list = [c.get_member().public_key for c in candidates.itervalues()]
 
-        self.create_created_cache(circuit_id, sock_addr, candidates)
+        reactor.callFromThread(self.create_created_cache, circuit_id, sock_addr, candidates)
 
         if self.notifier:
             from Tribler.Core.simpledefs import NTFY_ANONTUNNEL, NTFY_JOINED
