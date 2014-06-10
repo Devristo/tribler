@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import threading
 import time
@@ -6,8 +5,8 @@ from M2Crypto.EC import EC_pub
 
 from Tribler.community.anontunnel.events import TunnelObserver
 from Tribler.community.anontunnel.globals import CIRCUIT_STATE_READY, \
-    CIRCUIT_STATE_BROKEN, CIRCUIT_STATE_EXTENDING, PING_INTERVAL
-from Tribler.dispersy.candidate import CANDIDATE_WALK_LIFETIME, Candidate
+    CIRCUIT_STATE_BROKEN, CIRCUIT_STATE_EXTENDING
+
 
 __author__ = 'chris'
 
@@ -164,7 +163,7 @@ class CircuitPool(TunnelObserver):
         super(CircuitPool, self).__init__()
 
         self._logger = logging.getLogger(__name__)
-        self._logger.warning("Creating a circuit pool of size %d with name '%s'", size, name)
+        self._logger.info("Creating a circuit pool of size %d with name '%s'", size, name)
 
         self.lock = threading.RLock()
         self.size = size
@@ -189,7 +188,7 @@ class CircuitPool(TunnelObserver):
                 if circuit not in self.allocated_circuits]
 
     def remove_circuit(self, circuit):
-        self._logger.warning("Removing circuit %d from pool '%s'", circuit.circuit_id, self.name)
+        self._logger.info("Removing circuit %d from pool '%s'", circuit.circuit_id, self.name)
         with self.lock:
             if circuit in self.allocated_circuits:
                 self.allocated_circuits.remove(circuit)
@@ -197,7 +196,7 @@ class CircuitPool(TunnelObserver):
             self.circuits.remove(circuit)
 
     def fill(self, circuit):
-        self._logger.warning("Adding circuit %d to pool '%s'", circuit.circuit_id, self.name)
+        self._logger.info("Adding circuit %d to pool '%s'", circuit.circuit_id, self.name)
 
         with self.lock:
             self.circuits.add(circuit)
@@ -205,7 +204,7 @@ class CircuitPool(TunnelObserver):
                 observer.on_circuit_added(self, circuit)
 
     def deallocate(self, circuit):
-        self._logger.warning("Deallocate circuit %d from pool '%s'", circuit.circuit_id, self.name)
+        self._logger.info("Deallocate circuit %d from pool '%s'", circuit.circuit_id, self.name)
 
         with self.lock:
             self.allocated_circuits.remove(circuit)
@@ -215,13 +214,13 @@ class CircuitPool(TunnelObserver):
             try:
                 circuit = next((c for c in self.circuits if c not in self.allocated_circuits))
                 self.allocated_circuits.add(circuit)
-                self._logger.warning("Allocate circuit %d from pool %s", circuit.circuit_id, self.name)
+                self._logger.info("Allocate circuit %d from pool %s", circuit.circuit_id, self.name)
 
                 return circuit
 
             except StopIteration:
                 if not self.lacking:
-                    self._logger.warning("Growing size of pool %s from %d to %d", self.name, self.size, self.size*2)
+                    self._logger.info("Growing size of pool %s from %d to %d", self.name, self.size, self.size*2)
                     self.size *= 2
 
                 raise NotEnoughCircuitsException()
