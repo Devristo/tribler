@@ -956,7 +956,7 @@ class ProxyCommunity(Community):
         @param WalkCandidate candidate: the candidate we got the CREATE from
         @param dict[str, WalkCandidate] candidates: list of extend candidates we sent back
         """
-        reactor.callFromThread(self._request_cache.add, CreatedRequestCache(self, circuit_id, candidate, candidates))
+        self._request_cache.add(CreatedRequestCache(self, circuit_id, candidate, candidates))
 
     @blocking_call_on_reactor_thread
     def pop_created_cache(self, circuit_id, candidate):
