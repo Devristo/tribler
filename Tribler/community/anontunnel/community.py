@@ -541,7 +541,7 @@ class ProxyCommunity(Community):
 
         candidate_list = [c.get_member().public_key for c in candidates.itervalues()]
 
-        reactor.callFromThread(self.create_created_cache, circuit_id, sock_addr, candidates)
+        self.create_created_cache(circuit_id, sock_addr, candidates)
 
         if self.notifier:
             from Tribler.Core.simpledefs import NTFY_ANONTUNNEL, NTFY_JOINED
@@ -948,6 +948,7 @@ class ProxyCommunity(Community):
 
             return result
 
+    @blocking_call_on_reactor_thread
     def create_created_cache(self, circuit_id, candidate, candidates):
         """
 
