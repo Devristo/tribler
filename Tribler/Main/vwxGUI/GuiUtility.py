@@ -141,6 +141,7 @@ class GUIUtility:
                 self.SetTopSplitterWindow(self.frame.searchlist)
                 items = self.frame.searchlist.GetExpandedItems()
                 if items:
+                    items[0][1].expanded = False
                     self.frame.searchlist.Select(items[0][0])
                 else:
                     self.frame.searchlist.ResetBottomWindow()
@@ -219,10 +220,6 @@ class GUIUtility:
                     else:
                         self.frame.librarylist.ResetBottomWindow()
 
-                # Open infohash
-                if args:
-                    self.frame.librarylist.GetManager().refresh_or_expand(args[0])
-
             elif self.guiPage == 'my_files':
                 # Hide list
                 self.frame.librarylist.Show(False)
@@ -297,8 +294,6 @@ class GUIUtility:
         while self.frame.splitter_top.GetChildren():
             self.frame.splitter_top.Detach(0)
 
-        from Tribler.Main.vwxGUI.list_details import ChannelInfoPanel
-        self.SetBottomSplitterWindow(ChannelInfoPanel)
         if window:
             self.frame.splitter_top.Add(window, 1, wx.EXPAND)
             window.Show(show)
