@@ -627,13 +627,6 @@ class OpportunisticCrypto(DefaultCrypto):
     def get_key(self, session_key, counter):
         return aes_encrypt_str(session_key, str(counter))
 
-    # def relay_packet_crypto(self, direction, sock_addr, circuit_id, data):
-    #     import random
-    #     if random.randint(0, 1000) < 10:
-    #         self._logger.error("DROPPING RELAY PACKET")
-    #         return None
-    #     super(OpportunisticCrypto, self).relay_packet_crypto(direction, sock_addr, circuit_id, data)
-
     def outgoing_packet_crypto(self, sock_addr, circuit_id,
                                 message_type, message, content):
         relay_key = (sock_addr, circuit_id)
@@ -672,6 +665,8 @@ class OpportunisticCrypto(DefaultCrypto):
                     content = aes_encrypt_str(hop.session_key, content)
         else:
             raise CryptoError("Don't know how to encrypt outgoing message")
+
+        return content
 
 
     def incoming_packet_crypto(self, sock_addr, circuit_id, data):

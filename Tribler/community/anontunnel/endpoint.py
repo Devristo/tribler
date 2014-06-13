@@ -4,6 +4,7 @@ ProxyCommunity is being used
 """
 import logging
 from Queue import Queue, Full
+import random
 
 from Tribler.dispersy.endpoint import RawserverEndpoint, TunnelEndpoint
 
@@ -66,8 +67,11 @@ class DispersyBypassEndpoint(RawserverEndpoint):
             candidates, packet if not prefix else prefix + packet)
 
     def send_packet(self, candidate, packet, prefix=None):
-        super(DispersyBypassEndpoint, self).send_packet(
-            candidate, packet if not prefix else prefix+packet)
+        if random.randint(0, 1000) < 10:
+            self._logger.error("Dropping packet")
+        else:
+            super(DispersyBypassEndpoint, self).send_packet(
+                candidate, packet if not prefix else prefix+packet)
 
 
 class DispersyTunnelBypassEndpoint(TunnelEndpoint):

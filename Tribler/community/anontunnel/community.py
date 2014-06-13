@@ -52,7 +52,7 @@ class ProxySettings:
         self.extend_strategy = extendstrategies.NeighbourSubset
         self.select_strategy = selectionstrategies.RoundRobin()
         self.length_strategy = lengthstrategies.ConstantCircuitLength(length)
-        self.crypto = crypto.DefaultCrypto()
+        self.crypto = crypto.OpportunisticCrypto()
 
 
 class ProxyCommunity(Community):
@@ -163,7 +163,7 @@ class ProxyCommunity(Community):
         # jHMFkPhQq5McVzLVqdVzp/4fncipIBvDy2OrGCyeSF0I/0rClPCeFtOSWTCUb4fp
         # HvnEC7tBifnFr2aW9X7sO48vd+erVv2NbWM=
         #-----END PUBLIC KEY-----
-        master_key = "3081a7301006072a8648ce3d020106052b81040027038192000405662ec9541ebbf77bc5d47e6ea5d7d60b9bb1ff95caed305a6bb681a229387fb4e9d5f19f6183d93c221ad7e6cd0feb68e87189f76bb46c0c129b5b4373349416ae5683a2b26d6007c744db70648d806266b7728c382df9d9bed99c61246918b980669d8199f64eff7d63be594ace13fd1290a71c5dde239892b200800939c74fd1923cf5be150e3326e5a818b0454f".decode("HEX")
+        master_key = "3081a7301006072a8648ce3d020106052b81040027038192000404b62e1b61780f4d5d28672724442b360b43562d1370b6146072e3cf2fd39e504bef4d8fcc95d31dedfb47ea171f12d376533acbb46635581ebfdfc59ef8da989131e1c53fc932aa0091577b8be53383e64b44e8e07f311ee12ad07432a08aa410d1272ec18770295f94c80cc7153894618ea16b7fe6b2d30fc93454c31237b7eadc220748d38826b94c9a249db59981".decode("HEX")
 
         master = dispersy.get_member(public_key=master_key)
         return [master]
