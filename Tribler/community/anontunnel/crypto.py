@@ -733,7 +733,7 @@ class OpportunisticCrypto(DefaultCrypto):
                      continue
                 if missed > 0:
                     #self._logger.error("DEC OWN CIRC: C: {}, SK: {}".format(self.counters[counter_key], session_key.encode("hex")))
-                    gitpass
+                    pass
                 self.counters[counter_key] = counter + 1
                 return content[0:-10]
 
