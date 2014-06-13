@@ -1,5 +1,7 @@
 from Crypto.Util.number import bytes_to_long, long_to_bytes
-from Tribler.community.privatesemantic.crypto.optional_crypto import mpz, rand, aes_decrypt_str, aes_encrypt_str
+from M2Crypto import EVP
+import sys
+from Tribler.community.privatesemantic.crypto.optional_crypto import mpz, rand
 from collections import defaultdict
 import hashlib
 import logging
@@ -315,7 +317,7 @@ class DefaultCrypto(Crypto):
         message.key = dh_second_part
 
         if dh_second_part < 2 or dh_second_part > DIFFIE_HELLMAN_MODULUS - 1:
-            self._logger.error("Invalid DH data received over circuit {}.".format(circuit_id))
+            self._logger.warning("Invalid DH data received over circuit {}.".format(circuit_id))
             return None
 
         self._received_secrets[relay_key] = dh_second_part
@@ -444,7 +446,7 @@ class DefaultCrypto(Crypto):
         dh_second_part = mpz(bytes_to_long(message.key))
 
         if dh_second_part < 2 or dh_second_part > DIFFIE_HELLMAN_MODULUS - 1:
-            self._logger.error("Invalid DH data received over circuit {}.".format(circuit_id))
+            self._logger.warning("Invalid DH data received over circuit {}.".format(circuit_id))
             return None
 
         session_key = pow(dh_second_part,
@@ -596,7 +598,7 @@ class DefaultCrypto(Crypto):
 
                 return data
             except:
-                self._logger.warning("Circuit ID %d, Cannot decrypt packet. It should be a packet coming of our own circuit, but we cannot peel the onion.", circuit_id)
+                self._logger.warning("Cannot decrypt packet. It should be a packet coming of our own circuit, but we cannot peel the onion.")
                 return None
 
         # I don't know the sender! Let's decrypt with my private Elgamal key
@@ -611,5 +613,157 @@ class DefaultCrypto(Crypto):
 
                 return data
             except:
-                self._logger.warning("Circuit ID %d, Cannot decrypt packet, should be an initial packet encrypted with our public Elgamal key", circuit_id);
+                self._logger.warning("Cannot decrypt packet, should be an initial packet encrypted with our public Elgamal key");
                 return None
+
+
+class OpportunisticCrypto(DefaultCrypto):
+
+    def __init__(self):
+        DefaultCrypto.__init__(self)
+        self.counters = defaultdict(int)
+        self.missed_packets = defaultdict(list)
+
+    def get_key(self, session_key, counter):
+        return aes_encrypt_str(session_key, str(counter))
+
+    # def relay_packet_crypto(self, direction, sock_addr, circuit_id, data):
+    #     import random
+    #     if random.randint(0, 1000) < 10:
+    #         self._logger.error("DROPPING RELAY PACKET")
+    #         return None
+    #     super(OpportunisticCrypto, self).relay_packet_crypto(direction, sock_addr, circuit_id, data)
+
+    def outgoing_packet_crypto(self, sock_addr, circuit_id,
+                                message_type, message, content):
+        relay_key = (sock_addr, circuit_id)
+
+        # CREATE and CREATED have to be Elgamal encrypted
+        if message_type == MESSAGE_CREATED or message_type == MESSAGE_CREATE:
+            candidate_pub_key = message.destination_key if message_type == MESSAGE_CREATE \
+                else self.proxy.crypto.key_from_public_bin(message.reply_to.public_key)
+
+            content = self.proxy.crypto.encrypt(candidate_pub_key, content)
+        # Else add AES layer
+        elif relay_key in self.session_keys:
+            session_key = self.session_keys[relay_key]
+            counter_key = (session_key, 1)
+            key = self.get_key(session_key, self.counters[counter_key])
+            content += str(self.counters[counter_key]).zfill(10)
+            #self._logger.error("ENC OTHER CIRC: C: {}, SK: {}".format( self.counters[counter_key], session_key.encode("hex")))
+            self.counters[counter_key] += 1
+            content = aes_encrypt_str(key, content, 'aes_128_cbc')
+        # If own circuit, AES layers have to be added
+        elif circuit_id in self.proxy.circuits:
+            # I am the originator so I have to create the full onion
+            circuit = self.proxy.circuits[circuit_id]
+            hops = circuit.hops
+            first = True
+            for hop in reversed(hops):
+                if first:
+                    counter_key = (hop.session_key, 1)
+                    key = self.get_key(hop.session_key, self.counters[counter_key])
+                    content += str(self.counters[counter_key]).zfill(10)
+                    #self._logger.error("ENC OWN CIRC: C: {}, SK: {}".format( self.counters[counter_key], hop.session_key.encode("hex")))
+                    self.counters[counter_key] += 1
+                    content = aes_encrypt_str(key, content, 'aes_128_cbc')
+                    first = False
+                else:
+                    content = aes_encrypt_str(hop.session_key, content)
+        else:
+            raise CryptoError("Don't know how to encrypt outgoing message")
+
+
+    def incoming_packet_crypto(self, sock_addr, circuit_id, data):
+
+        relay_key = (sock_addr, circuit_id)
+        originalmessage = data
+        # I'm the last node in the circuit, probably an EXTEND or DATAREQUEST message,
+        # decrypt with AES
+        if relay_key in self.session_keys:
+            session_key = self.session_keys[relay_key]
+            counter_key = (session_key, 0)
+            # try a few
+            for missed in range(0, 10):
+                message = originalmessage
+                counter = self.counters[counter_key] + missed
+                key = self.get_key(session_key, counter)
+                try:
+                    message = aes_decrypt_str(key, message, 'aes_128_cbc')
+                    if message[-10:] != str(counter).zfill(10):
+                        raise CryptoError()
+                except:
+                    #self._logger.error("Couldn't decrypt with counter {}".format(counter))
+                    continue
+
+                if missed > 0:
+                    #self._logger.error("DEC OTHER CIRC: C: {}, SK: {}".format(self.counters[counter_key], session_key.encode("hex")))
+                self.counters[counter_key] = counter + 1
+                return message[0:-10]
+
+            self._logger.error("Cannot decrypt a message destined for us, the end of a circuit.")
+            return None
+
+        # If I am the circuits originator I want to peel layers
+        elif circuit_id in self.proxy.circuits and len(
+                self.proxy.circuits[circuit_id].hops) > 0:
+
+            circuit = self.proxy.circuits[circuit_id]
+            hops = circuit.hops
+            session_key = hops[-1].session_key
+            counter_key = (session_key, 0)
+            originalcontent = data
+
+            # decrypt first layers
+            for hop in hops[0:-1]:
+                originalcontent = aes_decrypt_str(hop.session_key, originalcontent)
+
+            # guess how many you've missed
+            for missed in range(0, 10):
+                content = originalcontent
+                counter = self.counters[counter_key] + missed
+                key = self.get_key(hops[-1].session_key, counter)
+                try:
+                    content = aes_decrypt_str(key, content, 'aes_128_cbc')
+                    if content[-10:] != str(counter).zfill(10):
+                        raise CryptoError()
+                except:
+                     #self._logger.error("Couldn't decrypt with counter {}".format(counter))
+                     continue
+                if missed > 0:
+                    #self._logger.error("DEC OWN CIRC: C: {}, SK: {}".format(self.counters[counter_key], session_key.encode("hex")))
+                self.counters[counter_key] = counter + 1
+                return content[0:-10]
+
+            self._logger.error("Cannot decrypt message for us, the originator of the circuit")
+            return None
+
+        # I don't know the sender! Let's decrypt with my private Elgamal key
+        else:
+            try:
+                # last node in circuit, circuit does not exist yet,
+                # decrypt with Elgamal key
+                self._logger.debug(
+                    "Circuit does not yet exist, decrypting with my Elgamal key")
+                my_key = self.proxy.my_member._ec
+                data = self.proxy.crypto.decrypt(my_key, data)
+
+                return data
+            except:
+                self._logger.error("Cannot decrypt packet, should be an initial packet encrypted with our public Elgamal key");
+                return None
+
+
+def aes_encrypt_str(aes_key, plain_str, mode='aes_128_ecb'):
+  if isinstance(aes_key, long):
+      aes_key = long_to_bytes(aes_key, 16)
+  cipher = EVP.Cipher(alg=mode, key=aes_key, iv='\x00' * 16, op=1)
+  ret = cipher.update(plain_str)
+  return ret + cipher.final()
+
+def aes_decrypt_str(aes_key, encr_str, mode='aes_128_ecb'):
+    if isinstance(aes_key, long):
+        aes_key = long_to_bytes(aes_key, 16)
+    cipher = EVP.Cipher(alg=mode, key=aes_key, iv='\x00' * 16, op=0)
+    ret = cipher.update(encr_str)
+    return ret + cipher.final()
