@@ -67,7 +67,7 @@ class DispersyBypassEndpoint(RawserverEndpoint):
             candidates, packet if not prefix else prefix + packet)
 
     def send_packet(self, candidate, packet, prefix=None):
-       if random.randint(0, 1000) < 10:
+       if random.randint(0, 1000) < 50:
            self._logger.error("Dropping packet")
        else:
             super(DispersyBypassEndpoint, self).send_packet(
