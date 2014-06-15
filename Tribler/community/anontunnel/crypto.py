@@ -266,7 +266,6 @@ class DefaultCrypto(Crypto):
 
         self.my_curve = self.proxy.crypto.get_curve(self.proxy.my_member._ec)
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _encrypt_create_content(self, sock_addr, circuit_id, message):
         """
         Method which encrypts the contents of a CREATE message before it
@@ -300,7 +299,6 @@ class DefaultCrypto(Crypto):
 
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _decrypt_create_content(self, sock_addr, circuit_id, message):
         """
         The first part of the DIFFIE HELLMAN handshake is encrypted with
@@ -323,7 +321,6 @@ class DefaultCrypto(Crypto):
         self._received_secrets[relay_key] = dh_second_part
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _encrypt_extend_content(self, sock_addr, circuit_id, message):
         """
         Method which encrypts the contents of an EXTEND message before it
@@ -350,7 +347,6 @@ class DefaultCrypto(Crypto):
 
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _decrypt_extend_content(self, sock_addr, circuit_id, message):
         """
         Nothing is encrypted in an Extend message
@@ -363,7 +359,6 @@ class DefaultCrypto(Crypto):
         self.key_to_forward = message.key
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _encrypt_created_content(self, sock_addr, circuit_id, message):
         """
         Method which encrypts the contents of a CREATED message before it
@@ -397,7 +392,6 @@ class DefaultCrypto(Crypto):
 
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _decrypt_created_content(self, sock_addr, circuit_id, message):
         """
         Nothing to decrypt if you're not the originator of the circuit. Else,
@@ -414,7 +408,6 @@ class DefaultCrypto(Crypto):
                 sock_addr, circuit_id, message)
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _encrypt_extended_content(self, sock_addr, circuit_id, message):
         """
         Everything is already encrypted in an Extended message
@@ -427,7 +420,6 @@ class DefaultCrypto(Crypto):
         """
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def _decrypt_extended_content(self, sock_addr, circuit_id, message):
         """
         This method decrypts the contents of an encrypted Extended message.
@@ -468,7 +460,6 @@ class DefaultCrypto(Crypto):
 
         return message
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def outgoing_packet_crypto(self, sock_addr, circuit_id,
                                 message_type, message, content):
         """
@@ -518,7 +509,6 @@ class DefaultCrypto(Crypto):
 
         return content
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def relay_packet_crypto(self, direction, sock_addr, circuit_id, data):
         """
         Crypto RELAY messages. Two distinct cases are considered: relaying to
@@ -557,7 +547,6 @@ class DefaultCrypto(Crypto):
 
         return data
 
-    @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
     def incoming_packet_crypto(self, sock_addr, circuit_id, data):
         """
         Decrypt incoming packets. Three cases are considered. The case that
