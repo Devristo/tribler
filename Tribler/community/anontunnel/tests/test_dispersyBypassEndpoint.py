@@ -32,5 +32,10 @@ class TestDispersyBypassEndpoint(TestCase):
             prefix + "Hello world!"
         )
 
+        packet_no_prefix = (
+            ("127.0.0.1", 100),
+            "Hello world!"
+        )
+
         self.endpoint.data_came_in([packet])
-        self.assertEqual(self.bypass_message, packet)
+        self.assertEqual(self.bypass_message, packet_no_prefix)

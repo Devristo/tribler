@@ -31,7 +31,7 @@ class TestTunnelExitSocket(TestCase):
         # Incoming packets must be routed back using the proxy
         self.proxy.tunnel_data_to_origin.assert_called_with(
             circuit_id=self.circuit_id,
-            candidate=self.return_address,
+            sock_addr=self.return_address,
             source_address=source_address,
             payload=packet
         )
