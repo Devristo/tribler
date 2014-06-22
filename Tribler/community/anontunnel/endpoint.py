@@ -3,6 +3,7 @@ Contains the DispersyBypassEndpoint to be used as Dispersy endpoint when the
 ProxyCommunity is being used
 """
 import logging
+import os
 from Queue import Queue, Full
 import random
 
@@ -25,6 +26,7 @@ class DispersyBypassEndpoint(RawserverEndpoint):
         super(DispersyBypassEndpoint, self).__init__(raw_server, port, ip)
         self.packet_handlers = {}
         self.queue = Queue()
+        self.packetloss = os.environ.getenv('PACKETLOSS',0)
 
         self._logger = logging.getLogger(__name__)
 
@@ -67,9 +69,9 @@ class DispersyBypassEndpoint(RawserverEndpoint):
             candidates, packet if not prefix else prefix + packet)
 
     def send_packet(self, candidate, packet, prefix=None):
-#      if random.randint(0, 1000) < 50:
-#          self._logger.error("Dropping packet")
-#      else:
+      if random.randint(0, 1000) < self.packetloss:
+          self._logger.error("Dropping packet")
+      else:
             super(DispersyBypassEndpoint, self).send_packet(
                 candidate, packet if not prefix else prefix+packet)
 
