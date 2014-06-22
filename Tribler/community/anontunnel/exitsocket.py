@@ -3,6 +3,7 @@ from Tribler.community.anontunnel.payload import DataMessage
 __author__ = 'Chris'
 
 import logging
+import os
 
 
 class TunnelExitSocket(object):
