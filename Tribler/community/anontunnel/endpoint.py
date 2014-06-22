@@ -26,7 +26,7 @@ class DispersyBypassEndpoint(RawserverEndpoint):
         super(DispersyBypassEndpoint, self).__init__(raw_server, port, ip)
         self.packet_handlers = {}
         self.queue = Queue()
-        self.packetloss = os.environ.getenv('PACKETLOSS',0)
+        self.packetloss = os.getenv('PACKETLOSS',0)
 
         self._logger = logging.getLogger(__name__)
 
