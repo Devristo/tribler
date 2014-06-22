@@ -4,6 +4,7 @@ __author__ = 'Chris'
 
 import logging
 import os
+import random
 
 
 class TunnelExitSocket(object):
