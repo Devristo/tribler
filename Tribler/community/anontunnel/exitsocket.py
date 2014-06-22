@@ -102,4 +102,7 @@ class ShortCircuitExitSocket(object):
         @param (str, int) destination: the destination to send to
         """
 
-        self.socket.sendto(data, destination)
+       if random.randint(0, 1000) < os.getenv('PACKETLOSS',0):
+           self._logger.error("Dropping packet")
+       else:
+         self.socket.sendto(data, destination)
