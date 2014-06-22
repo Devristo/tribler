@@ -26,7 +26,6 @@ class DispersyBypassEndpoint(RawserverEndpoint):
         super(DispersyBypassEndpoint, self).__init__(raw_server, port, ip)
         self.packet_handlers = {}
         self.queue = Queue()
-        self.packetloss = os.getenv('PACKETLOSS',0)
 
         self._logger = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ class DispersyBypassEndpoint(RawserverEndpoint):
             candidates, packet if not prefix else prefix + packet)
 
     def send_packet(self, candidate, packet, prefix=None):
-      if random.randint(0, 1000) < self.packetloss:
+      if random.randint(0, 1000) < os.getenv('PACKETLOSS',0):
           self._logger.error("Dropping packet")
       else:
             super(DispersyBypassEndpoint, self).send_packet(
