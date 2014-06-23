@@ -44,10 +44,11 @@ class ProxySettings:
     """
 
     def __init__(self):
-        length = random.randint(3, 3)
+        length = random.randint(0,0)
 
         self.max_circuits = 1
         self.delay = 5
+        self.packetloss = 0
 
         self.extend_strategy = extendstrategies.NeighbourSubset
         self.select_strategy = selectionstrategies.RoundRobin()

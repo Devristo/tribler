@@ -101,9 +101,9 @@ class ShortCircuitExitSocket(object):
         """
         Sends data to the destination over an UDP socket
         @param str data: the data to send
-        @param (str, int) destination: the destination to send to
+        @param (str, int) destination:B the destination to send to
         """
-        if random.randint(0, 1000) < int(os.getenv('PACKETLOSS',0)):
+        if random.randint(0, 1000) < self.proxy.settings.packetloss:
             self._logger.error("Dropping packet")
         else:
           self.socket.sendto(data, destination)
