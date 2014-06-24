@@ -20,7 +20,7 @@ class TestLengthSelectionStrategy(TestCase):
     def __circuit(hops):
         candidate = Candidate(("127.0.0.1", 1000), False)
 
-        circuit = Circuit(randint(0, 1000), hops, candidate)
+        circuit = Circuit(randint(0, 1000), hops, candidate.sock_addr)
         for c in [candidate] * hops:
             circuit.add_hop(Hop(None))
 
@@ -49,7 +49,7 @@ class TestRandomSelectionStrategy(TestCase):
     def __circuit(hops):
         candidate = Candidate(("127.0.0.1", 1000), False)
 
-        circuit = Circuit(randint(0, 1000), hops, candidate)
+        circuit = Circuit(randint(0, 1000), hops, candidate.sock_addr)
         for c in [candidate] * hops:
             circuit.add_hop = c
 

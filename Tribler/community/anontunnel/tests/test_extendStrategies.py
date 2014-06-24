@@ -24,7 +24,7 @@ class TestTrustThyNeighbour(TestCase):
 
     def test_extend_ready_circuit(self):
         circuit_candidate = Candidate(("127.0.0.1", 1000), False)
-        circuit = Circuit(1, 1, circuit_candidate)
+        circuit = Circuit(1, 1, circuit_candidate.sock_addr)
         circuit.add_hop(Hop(None))
 
         es = TrustThyNeighbour(self.proxy, circuit)
@@ -32,7 +32,7 @@ class TestTrustThyNeighbour(TestCase):
 
     def test_extend_broken_circuit(self):
         circuit_candidate = Candidate(("127.0.0.1", 1000), False)
-        circuit = Circuit(1, 1, circuit_candidate)
+        circuit = Circuit(1, 1, circuit_candidate.sock_addr)
 
         # Break circuit
         circuit.destroy()
@@ -43,7 +43,7 @@ class TestTrustThyNeighbour(TestCase):
 
     def test_extend_extending_circuit(self):
         circuit_candidate = Candidate(("127.0.0.1", 1000), False)
-        circuit = Circuit(1, 2, circuit_candidate)
+        circuit = Circuit(1, 2, circuit_candidate.sock_addr)
         es = TrustThyNeighbour(self.proxy, circuit)
         es.extend()
 
